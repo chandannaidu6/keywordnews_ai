@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from app.router import search
+from app.routers import search
 
 app = FastAPI(
     title = "Keyword News Summarizer",
