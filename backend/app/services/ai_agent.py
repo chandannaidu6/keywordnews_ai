@@ -1,12 +1,12 @@
 from typing import Dict, List, Tuple, Optional
 from langchain.chains import LLMChain
 from langchain_core.prompts import PromptTemplate
-from langchain.llms import HuggingFacePipeline
+from langchain_community.llms import HuggingFacePipeline
 from langchain.schema import AgentAction, AgentFinish
 from langgraph.graph import StateGraph, END  # Fixed import
 from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
-from app.models import Article
-from app.utils.config import get_model_path
+from ..models import Article
+from ..utils.config import get_model_path
 import torch
 import asyncio
 from pydantic import BaseModel
