@@ -1,7 +1,7 @@
 from fastapi import APIRouter,HTTPException
-from ..models import SearchRequest,SearchResponse
-from ..services.data_fetcher import fetch_news
-from ..services.ai_agent import filter_and_summarize
+from models import SearchRequest,SearchResponse
+from services.data_fetcher import fetch_news
+from services.ai_agent import filter_and_summarize
 import logging
 router = APIRouter(
     prefix='/api',

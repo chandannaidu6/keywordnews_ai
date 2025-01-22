@@ -1,7 +1,7 @@
 import requests
 import logging
 from fastapi import HTTPException
-from ..utils.config import get_news_api_key
+from utils.config import get_news_api_key
 from functools import lru_cache
 
 logger = logging.getLogger(__name__)

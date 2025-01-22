@@ -1,5 +1,7 @@
 from fastapi import FastAPI
-from .routers import search
+from routers import search
+import os
+os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 
 app = FastAPI(
     title = "Keyword News Summarizer",
