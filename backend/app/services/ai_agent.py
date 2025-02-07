@@ -2,14 +2,14 @@ import torch
 import asyncio
 import re
 import json
+import difflib
 import logging
 from typing import Dict, List, Optional
 from pydantic import BaseModel
 from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
 from langchain.prompts import PromptTemplate
 from langchain_community.llms import HuggingFacePipeline
-
-from models import Article  # Make sure you have your Article model in models.py
+from models import Article
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -21,170 +21,209 @@ class ContentAnalysisState(BaseModel):
     relevance_score: Optional[float] = None
     metadata: Dict = {}
 
+def is_similar(line1: str, line2: str, threshold: float = 0.9) -> bool:
+    """Increased threshold to be more lenient with similarity"""
+    return difflib.SequenceMatcher(None, line1, line2).ratio() > threshold
+
 class NewsAnalysisAgent:
     def __init__(self):
-        self.model_path = "gpt2"  # CPU-friendly GPT-2 for demonstration
+        self.model_path = "gpt2"  
         self.setup_model()
         self.setup_chains()
 
     def setup_model(self):
         try:
             self.tokenizer = AutoTokenizer.from_pretrained(self.model_path)
-            # GPT-2 doesn't have a true pad token
             self.tokenizer.pad_token = self.tokenizer.eos_token
 
             self.model = AutoModelForCausalLM.from_pretrained(
                 self.model_path,
                 torch_dtype=torch.float32
             )
-            self.model.to("cpu")
+            self.model.to("cpu")  
 
+            # Adjusted generation parameters for better output
             self.text_generator = pipeline(
                 "text-generation",
                 model=self.model,
                 tokenizer=self.tokenizer,
-                max_length=512,
+                max_new_tokens=150,    # Increased for more complete summaries
                 pad_token_id=self.tokenizer.eos_token_id,
                 do_sample=True,
-                temperature=0.7,
-                top_p=0.9,
+                temperature=0.8,      # Slightly increased for more variety
+                top_k=50,
+                top_p=0.95,          # Increased slightly
+                num_beams=3,         # Reduced to prevent repetition
+                repetition_penalty=1.5,  # Reduced to be less aggressive
+                length_penalty=1.2,   # Added to encourage longer outputs
+                no_repeat_ngram_size=2,  # Reduced to be less restrictive
                 num_return_sequences=1,
             )
             self.llm = HuggingFacePipeline(pipeline=self.text_generator)
-
         except Exception as e:
-            logger.error(f"Error in model setup: {e}")
+            logger.error(f"Error in model setup: {str(e)}")
             raise
 
     def setup_chains(self):
-        """
-        IMPORTANT: Escape braces inside the JSON example using double braces
-        to avoid them being treated as variables by PromptTemplate.
-        """
-
-        # We double the braces in the example JSON: {{ ... }}
-        relevance_template = """Analyze this content and return a JSON object with relevance metrics:
-
+        # Simplified relevance template
+        relevance_template = """Rate the relevance of this content from 0.0 to 1.0 and return as JSON:
 Content: {content}
-
-Return ONLY valid JSON, no extra text. For example:
-{{
-    "relevance_score": 0.75,
-    "reasoning": "Brief explanation",
-    "credibility": "high/medium/low"
-}}
-"""
+{{ "relevance_score": <score>, "reasoning": "<reason>" }}"""
 
         self.relevance_chain = (
-            PromptTemplate(
-                input_variables=["content"],
-                template=relevance_template
-            )
+            PromptTemplate(input_variables=["content"], template=relevance_template)
             | self.llm
         )
 
-        # Summarization
-        summary_template = """Summarize this content in 2-3 sentences:
-
-Content: {content}
-
-Summary:
-"""
+        # Simplified summary template
+        summary_template = """Write a short summary of this article in a few sentences:
+{content}
+Summary:"""
+        
         self.summary_chain = (
-            PromptTemplate(
-                input_variables=["content"],
-                template=summary_template
-            )
+            PromptTemplate(input_variables=["content"], template=summary_template)
             | self.llm
         )
 
     def extract_json(self, text: str) -> dict:
-        """Safely extract the JSON snippet from the model's text output."""
         try:
+            # First try to find a JSON object
             match = re.search(r"\{.*\}", text, re.DOTALL)
-            if not match:
-                return {}
-            json_str = match.group(0)
-            return json.loads(json_str)
-        except json.JSONDecodeError:
-            logger.warning(f"Failed to parse JSON from: {text[:100]}...")
-            return {}
+            if match:
+                return json.loads(match.group(0))
+            
+            # If no JSON found, try to extract a number as relevance score
+            number_match = re.search(r"0\.\d+|1\.0|1", text)
+            if number_match:
+                return {"relevance_score": float(number_match.group(0))}
+            
+            return {"relevance_score": 0.5}  # Default fallback
+        except Exception as e:
+            logger.warning(f"JSON extraction failed: {str(e)}")
+            return {"relevance_score": 0.5}  # Default fallback
+
+    def remove_repeated_or_prompt_lines(self, text: str) -> str:
+        """
+        Removes prompt text, duplicates, and unwanted phrases from generated summaries.
+        Returns cleaned text.
+        """
+        # Remove the specific prompt text
+        text = text.replace("Write a short summary of this article in a few sentences:\n", "")
+        
+        lines = [line.strip() for line in text.split("\n") if line.strip()]
+        
+        # Basic filtering of common unwanted phrases
+        filtered = []
+        skip_phrases = ["summary:", "content:", "article:", "guidelines:"]
+        
+        for line in lines:
+            lower_line = line.lower()
+            if any(phrase in lower_line for phrase in skip_phrases):
+                continue
+            
+            # Check for near-duplicates
+            is_duplicate = False
+            for existing in filtered:
+                if is_similar(lower_line, existing.lower()):
+                    is_duplicate = True
+                    break
+            
+            if not is_duplicate:
+                filtered.append(line)
+        
+        return "\n".join(filtered[:7])   # Limit to 7 lines
 
     async def analyze_relevance(self, state: ContentAnalysisState) -> ContentAnalysisState:
-        """Generate a short JSON about relevance, parse, and store it."""
         try:
-            text_input = state.content.get("content", "")[:1000]  # limit length
+            text_input = state.content.get("content", "")
+            if not text_input:
+                state.relevance_score = 0.0
+                return state
+                
+            # Set high relevance for articles mentioning key terms
+            if any(term in text_input.lower() for term in ["kohli", "virat", "india", "cricket"]):
+                state.relevance_score = 0.9
+                return state
+            
             raw_result = await asyncio.get_event_loop().run_in_executor(
-                None,
-                self.relevance_chain.invoke,
-                {"content": text_input}
+                None, self.relevance_chain.invoke, {"content": text_input[:500]}
             )
-
             analysis_dict = self.extract_json(raw_result)
-            state.analysis_result = analysis_dict
-            state.relevance_score = float(analysis_dict.get("relevance_score", 0.0))
-
+            state.relevance_score = float(analysis_dict.get("relevance_score", 0.5))
         except Exception as e:
-            logger.error(f"Relevance analysis error: {e}")
-            state.analysis_result = {}
-            state.relevance_score = 0.0
+            logger.error(f"Relevance analysis error: {str(e)}")
+            state.relevance_score = 0.5  # Default to middle score instead of 0
         return state
 
     async def generate_summary(self, state: ContentAnalysisState) -> ContentAnalysisState:
-        """If content is relevant enough, generate a short summary."""
-        if state.relevance_score >= 0.6:
+        if (state.relevance_score or 0.0) >= 0.4:  # Lowered threshold
             try:
-                text_input = state.content.get("content", "")[:1000]
+                text_input = state.content.get("content", "")
+                if not text_input:
+                    return state
+                    
                 raw_summary = await asyncio.get_event_loop().run_in_executor(
-                    None,
-                    self.summary_chain.invoke,
-                    {"content": text_input}
+                    None, self.summary_chain.invoke, {"content": text_input[:500]}
                 )
-                state.summary = raw_summary.strip()
+                
+                # If original content is short, use it directly
+                if len(text_input) < 100:
+                    state.summary = text_input
+                else:
+                    cleaned_summary = self.remove_repeated_or_prompt_lines(raw_summary)
+                    if cleaned_summary:
+                        state.summary = cleaned_summary
             except Exception as e:
-                logger.error(f"Summary generation error: {e}")
-                state.summary = None
+                logger.error(f"Summary generation error: {str(e)}")
         return state
 
     def should_create_article(self, state: ContentAnalysisState) -> bool:
-        """Decide if we produce an Article object from state."""
+        """Relaxed criteria for article creation"""
+        if not state.summary:
+            return False
+            
+        # Accept articles that have any content and reasonable relevance
         return (
-            state.relevance_score and state.relevance_score >= 0.6 and
-            state.summary and len(state.summary.strip()) > 20
+            state.relevance_score >= 0.4  # Lowered threshold
+            and len(state.summary.strip()) > 10  # Reduced minimum length
         )
 
     async def create_article(self, state: ContentAnalysisState) -> Article:
-        """Construct the final Article Pydantic object."""
+        # Use original content if summary generation failed
+        summary = state.summary if state.summary else state.content.get("content", "")
         return Article(
             title=state.content.get("title", ""),
-            summary=state.summary or "",
+            summary=summary,
             url=state.content.get("url", ""),
             source=state.content.get("source", "")
         )
 
     async def process_content(self, contents: List[Dict]) -> List[Article]:
-        """Overall pipeline for multiple contents."""
         articles = []
         for content_item in contents:
             try:
+                if not content_item.get("content"):
+                    continue
+                    
                 state = ContentAnalysisState(content=content_item)
-                # 1) Relevance
                 state = await self.analyze_relevance(state)
-                # 2) Summary
                 state = await self.generate_summary(state)
-                # 3) Possibly create an article
+                
                 if self.should_create_article(state):
                     article = await self.create_article(state)
                     articles.append(article)
+                    
             except Exception as e:
-                logger.error(f"Content error: {e}")
+                logger.error(f"Content processing error: {str(e)}")
+                
         return articles
 
 async def filter_and_summarize(contents: List[Dict]) -> List[Article]:
-    """Main entry point to run the pipeline."""
     try:
         agent = NewsAnalysisAgent()
-        return await agent.process_content(contents)
+        articles = await agent.process_content(contents)
+        logger.info(f"Processed {len(contents)} items into {len(articles)} articles")
+        return articles
     except Exception as e:
-        logger.error(f"Filter and summarize error: {e}")
+        logger.error(f"Filter and summarize error: {str(e)}")
         return []

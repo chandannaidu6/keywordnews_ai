@@ -7,50 +7,37 @@ from transformers import (
     Trainer,
     TrainingArguments,
 )
-from peft import LoraConfig, get_peft_model, TaskType
+from peft import LoraConfig,get_peft_model,TaskType
 from torch.nn.utils.rnn import pad_sequence
 
-#
-# 1. Basic configuration
-#
-model_name = "gpt2"        # A CPU-friendly base model
-device = "cpu"             # Force CPU usage
+model_name="gpt2"
+device="cpu"
 train_split = "train[:1000]"
-max_seq_length = 256       # Truncation length for CPU
-batch_size = 1             # CPU is slow, so keep batch small
-num_epochs = 1             # Demonstration only
+max_seq_length = 256
+batch_size = 1
+num_epochs = 1
 
-#
-# 2. Load the dataset
-#
-dataset = load_dataset("cnn_dailymail", "3.0.0", split=train_split)
+dataset = load_dataset("cnn_dailymail","3.0.0",split=train_split)
 
-#
-# 3. Tokenizer
-#
 tokenizer = AutoTokenizer.from_pretrained(model_name)
-tokenizer.pad_token = tokenizer.eos_token  # GPT-2 does not have a pad_token by default
+tokenizer.pad_token = tokenizer.eos_token
 
 def tokenize_function(examples):
-    """
-    Convert each article into a prompt for summarization, then tokenize.
-    """
-    text = [f"Summarize:\n\n{article}\n\nSummary:" for article in examples["article"]]
+    text = [f"Summarize:\n\n{article}\n\nSummary:" for article in examples['article']]
     outputs = tokenizer(
         text,
         truncation=True,
-        padding=False,        # We manually pad in the data collator
+        padding=False,
         max_length=max_seq_length
     )
-    # For causal LM, labels are just input_ids (shifted in the model)
-    outputs["labels"] = outputs["input_ids"].copy()
+    outputs['labels'] = outputs['input_ids'].copy()
     return outputs
-
 tokenized_data = dataset.map(
     tokenize_function,
     batched=True,
-    remove_columns=["article", "highlights", "id"]
+    remove_columns=['article','highlights','id']     
 )
+
 
 #
 # 4. Load the base model on CPU

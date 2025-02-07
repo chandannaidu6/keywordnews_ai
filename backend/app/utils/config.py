@@ -12,5 +12,5 @@ def get_news_api_key():
 def get_model_path():
     model_path = os.getenv("MODEL_PATH")
     if not model_path:
-        raise ValueError("Model PAth not found")
+        raise ValueError("Model Path not found")
     return model_path
