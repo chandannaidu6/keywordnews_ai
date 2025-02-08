@@ -36,7 +36,6 @@ const App = () => {
     <Box
       sx={{
         minHeight: "100vh",
-        // Example radial gradient:
         background: `
           radial-gradient(
             circle at 40% 40%,
@@ -47,8 +46,7 @@ const App = () => {
         `,
       }}
     >
-      {/* Header / AppBar */}
-      <AppBar
+     <AppBar
         position="static"
         sx={{
           background: "linear-gradient(90deg, #2196F3 0%, #21CBF3 100%)",
@@ -61,9 +59,7 @@ const App = () => {
         </Toolbar>
       </AppBar>
 
-      {/* Main Content */}
       <Container maxWidth="md" sx={{ mt: 4 }}>
-        {/* Hero Section */}
         <Box textAlign="center" my={4}>
           <Typography variant="h3" component="h1" gutterBottom>
             Stay Informed
@@ -73,10 +69,8 @@ const App = () => {
           </Typography>
         </Box>
 
-        {/* Search Component */}
         <TextBox onResults={handleResults} />
 
-        {/* Articles Display */}
         <Box mt={4}>
           <Grid container spacing={4}>
             {articles.map((article, index) => (

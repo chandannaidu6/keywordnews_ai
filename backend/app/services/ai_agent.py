@@ -42,21 +42,20 @@ class NewsAnalysisAgent:
             )
             self.model.to("cpu")  
 
-            # Adjusted generation parameters for better output
             self.text_generator = pipeline(
                 "text-generation",
                 model=self.model,
                 tokenizer=self.tokenizer,
-                max_new_tokens=150,    # Increased for more complete summaries
+                max_new_tokens=150,    
                 pad_token_id=self.tokenizer.eos_token_id,
                 do_sample=True,
-                temperature=0.8,      # Slightly increased for more variety
+                temperature=0.8,      
                 top_k=50,
-                top_p=0.95,          # Increased slightly
-                num_beams=3,         # Reduced to prevent repetition
-                repetition_penalty=1.5,  # Reduced to be less aggressive
-                length_penalty=1.2,   # Added to encourage longer outputs
-                no_repeat_ngram_size=2,  # Reduced to be less restrictive
+                top_p=0.95,          
+                num_beams=3,        
+                repetition_penalty=1.5,  
+                length_penalty=1.2,   
+                no_repeat_ngram_size=2,  
                 num_return_sequences=1,
             )
             self.llm = HuggingFacePipeline(pipeline=self.text_generator)
@@ -87,32 +86,28 @@ Summary:"""
 
     def extract_json(self, text: str) -> dict:
         try:
-            # First try to find a JSON object
             match = re.search(r"\{.*\}", text, re.DOTALL)
             if match:
                 return json.loads(match.group(0))
             
-            # If no JSON found, try to extract a number as relevance score
             number_match = re.search(r"0\.\d+|1\.0|1", text)
             if number_match:
                 return {"relevance_score": float(number_match.group(0))}
             
-            return {"relevance_score": 0.5}  # Default fallback
+            return {"relevance_score": 0.5}  
         except Exception as e:
             logger.warning(f"JSON extraction failed: {str(e)}")
-            return {"relevance_score": 0.5}  # Default fallback
+            return {"relevance_score": 0.5}  
 
     def remove_repeated_or_prompt_lines(self, text: str) -> str:
         """
         Removes prompt text, duplicates, and unwanted phrases from generated summaries.
         Returns cleaned text.
         """
-        # Remove the specific prompt text
         text = text.replace("Write a short summary of this article in a few sentences:\n", "")
         
         lines = [line.strip() for line in text.split("\n") if line.strip()]
         
-        # Basic filtering of common unwanted phrases
         filtered = []
         skip_phrases = ["summary:", "content:", "article:", "guidelines:"]
         
@@ -121,7 +116,6 @@ Summary:"""
             if any(phrase in lower_line for phrase in skip_phrases):
                 continue
             
-            # Check for near-duplicates
             is_duplicate = False
             for existing in filtered:
                 if is_similar(lower_line, existing.lower()):
@@ -140,7 +134,6 @@ Summary:"""
                 state.relevance_score = 0.0
                 return state
                 
-            # Set high relevance for articles mentioning key terms
             if any(term in text_input.lower() for term in ["kohli", "virat", "india", "cricket"]):
                 state.relevance_score = 0.9
                 return state
@@ -166,7 +159,6 @@ Summary:"""
                     None, self.summary_chain.invoke, {"content": text_input[:500]}
                 )
                 
-                # If original content is short, use it directly
                 if len(text_input) < 100:
                     state.summary = text_input
                 else:
@@ -182,14 +174,12 @@ Summary:"""
         if not state.summary:
             return False
             
-        # Accept articles that have any content and reasonable relevance
         return (
-            state.relevance_score >= 0.4  # Lowered threshold
-            and len(state.summary.strip()) > 10  # Reduced minimum length
+            state.relevance_score >= 0.4  
+            and len(state.summary.strip()) > 10 
         )
 
     async def create_article(self, state: ContentAnalysisState) -> Article:
-        # Use original content if summary generation failed
         summary = state.summary if state.summary else state.content.get("content", "")
         return Article(
             title=state.content.get("title", ""),
