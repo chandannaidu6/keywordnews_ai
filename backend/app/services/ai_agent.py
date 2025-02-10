@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
 from langchain.prompts import PromptTemplate
 from langchain_community.llms import HuggingFacePipeline
-from models import Article
+from app.models import Article
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
