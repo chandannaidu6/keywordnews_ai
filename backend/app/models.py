@@ -1,30 +1,37 @@
-from pydantic import BaseModel,EmailStr
-from typing import List
+from pydantic import BaseModel, EmailStr
+from typing import List, Optional
 
 class Article(BaseModel):
-    title:str
-    summary:str
-    url:str
-    source:str
+    title: str
+    summary: str
+    url: str
+    source: str
 
 class SearchRequest(BaseModel):
-    keyword:str
+    keyword: str
 
 class SearchResponse(BaseModel):
-    keyword:str
-    articles:List[Article]
+    keyword: str
+    articles: List[Article]
 
 class UserBase(BaseModel):
     email: EmailStr
 
 class UserCreate(UserBase):
-    password:str
+    password: str
 
 class UserLogin(UserBase):
-    password:str
+    password: str
 
 class UserResponse(UserBase):
-    id:int
+    id: int
+    name: Optional[str] = None
+    image: Optional[str] = None
 
     class Config:
-        orm_mode = True
+        from_attributes = True
+
+class OAuthUserInput(BaseModel):
+    email: EmailStr
+    name: Optional[str] = None
+    image: Optional[str] = None

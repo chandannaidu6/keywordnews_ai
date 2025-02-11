@@ -43,9 +43,7 @@ export default function Home() {
     >
       <AppBar
         position="static"
-        sx={{
-          background: "linear-gradient(90deg, #2196F3 0%, #21CBF3 100%)",
-        }}
+        sx={{ background: "linear-gradient(90deg, #2196F3 0%, #21CBF3 100%)" }}
       >
         <Toolbar>
           <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
