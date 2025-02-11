@@ -14,6 +14,7 @@ class SearchResponse(BaseModel):
     keyword: str
     articles: List[Article]
 
+# Authentication models
 class UserBase(BaseModel):
     email: EmailStr
 

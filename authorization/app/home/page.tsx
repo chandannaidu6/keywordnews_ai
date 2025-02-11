@@ -12,8 +12,11 @@ import {
   CardContent,
   CardActions,
   Button,
+  Skeleton,
+  Avatar,
 } from "@mui/material";
 import TextBox, { SearchResponse } from "../../components/TextBox";
+import { useSession } from "next-auth/react"; // Import useSession
 
 type Article = {
   title: string;
@@ -24,10 +27,21 @@ type Article = {
 
 export default function Home() {
   const [articles, setArticles] = useState<Article[]>([]);
+  const [loading, setLoading] = useState(false); // Loading state
+  const { data: session } = useSession(); // Get user session
 
   const handleResults = (res: SearchResponse) => {
     setArticles(res.articles);
+    setLoading(false); // Stop loading when results are received
   };
+
+  const handleSearchStart = () => {
+    setLoading(true); // Start loading when search begins
+  };
+
+  // Extract the first letter of the email
+  const userEmail = session?.user?.email || "";
+  const firstLetter = userEmail.charAt(0).toUpperCase();
 
   return (
     <Box
@@ -49,6 +63,10 @@ export default function Home() {
           <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
             Keyword News
           </Typography>
+          {/* Display the first letter of the email in a circular Avatar */}
+          {session?.user?.email && (
+            <Avatar sx={{ bgcolor: "secondary.main" }}>{firstLetter}</Avatar>
+          )}
         </Toolbar>
       </AppBar>
 
@@ -62,43 +80,68 @@ export default function Home() {
           </Typography>
         </Box>
 
-        <TextBox onResults={handleResults} />
+        <TextBox onResults={handleResults} onSearchStart={handleSearchStart} />
 
         <Box mt={4}>
           <Grid container spacing={4}>
-            {articles.map((article, index) => (
-              <Grid item xs={12} sm={6} key={index}>
-                <Card
-                  sx={{
-                    height: "100%",
-                    display: "flex",
-                    flexDirection: "column",
-                  }}
-                >
-                  <CardContent sx={{ flexGrow: 1 }}>
-                    <Typography gutterBottom variant="h5" component="h2">
-                      {article.title}
-                    </Typography>
-                    <Typography>{article.summary}</Typography>
-                  </CardContent>
-                  <CardActions>
-                    <Button
-                      size="small"
-                      color="primary"
-                      href={article.url}
-                      target="_blank"
+            {loading
+              ? // Show skeleton loading while loading
+                Array.from({ length: 4 }).map((_, index) => (
+                  <Grid item xs={12} sm={6} key={index}>
+                    <Card
+                      sx={{
+                        height: "100%",
+                        display: "flex",
+                        flexDirection: "column",
+                      }}
                     >
-                      Read More
-                    </Button>
-                  </CardActions>
-                  <Box p={2}>
-                    <Typography variant="caption" color="textSecondary">
-                      Source: {article.source}
-                    </Typography>
-                  </Box>
-                </Card>
-              </Grid>
-            ))}
+                      <CardContent sx={{ flexGrow: 1 }}>
+                        <Skeleton variant="text" width="80%" height={40} />
+                        <Skeleton variant="text" width="100%" height={100} />
+                      </CardContent>
+                      <CardActions>
+                        <Skeleton variant="rectangular" width={100} height={36} />
+                      </CardActions>
+                      <Box p={2}>
+                        <Skeleton variant="text" width="60%" height={20} />
+                      </Box>
+                    </Card>
+                  </Grid>
+                ))
+              : // Show actual articles when data is loaded
+                articles.map((article, index) => (
+                  <Grid item xs={12} sm={6} key={index}>
+                    <Card
+                      sx={{
+                        height: "100%",
+                        display: "flex",
+                        flexDirection: "column",
+                      }}
+                    >
+                      <CardContent sx={{ flexGrow: 1 }}>
+                        <Typography gutterBottom variant="h5" component="h2">
+                          {article.title}
+                        </Typography>
+                        <Typography>{article.summary}</Typography>
+                      </CardContent>
+                      <CardActions>
+                        <Button
+                          size="small"
+                          color="primary"
+                          href={article.url}
+                          target="_blank"
+                        >
+                          Read More
+                        </Button>
+                      </CardActions>
+                      <Box p={2}>
+                        <Typography variant="caption" color="textSecondary">
+                          Source: {article.source}
+                        </Typography>
+                      </Box>
+                    </Card>
+                  </Grid>
+                ))}
           </Grid>
         </Box>
       </Container>

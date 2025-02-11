@@ -6,7 +6,7 @@ from app.models import UserCreate, UserLogin, UserResponse, OAuthUserInput
 from app.database.user import User
 from passlib.context import CryptContext
 from typing import AsyncGenerator
-import secrets  # import secrets to generate a dummy password
+import secrets
 
 router = APIRouter()
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -57,16 +57,23 @@ async def oauth_signin(oauth_data: OAuthUserInput, db: AsyncSession = Depends(ge
     if existing_user:
         return existing_user
 
+    # Create a new user with a dummy password.
     dummy_password = secrets.token_urlsafe(16)
     hashed_dummy_password = pwd_context.hash(dummy_password)
-
     new_user = User(
         email=oauth_data.email,
         hashed_password=hashed_dummy_password,
         name=oauth_data.name,
-        image=oauth_data.image
+        image=oauth_data.image,
     )
     db.add(new_user)
-    await db.commit()
+    try:
+        await db.commit()
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error creating OAuth user: {e}"
+        )
     await db.refresh(new_user)
     return new_user

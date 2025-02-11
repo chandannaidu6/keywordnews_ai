@@ -1,4 +1,3 @@
-# app/main.py
 from fastapi import FastAPI
 from app.routers import search, auth
 from fastapi.middleware.cors import CORSMiddleware
@@ -33,3 +32,4 @@ async def read_root():
 async def on_startup():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+

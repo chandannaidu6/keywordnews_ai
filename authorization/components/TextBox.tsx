@@ -13,9 +13,10 @@ export interface SearchResponse {
 
 interface TextBoxProps {
   onResults?: (response: SearchResponse) => void;
+  onSearchStart?: () => void; // Add this prop
 }
 
-export default function TextBox({ onResults }: TextBoxProps) {
+export default function TextBox({ onResults, onSearchStart }: TextBoxProps) {
   const [keyword, setKeyword] = useState("");
 
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -23,6 +24,10 @@ export default function TextBox({ onResults }: TextBoxProps) {
   };
 
   async function callBackendAPI(inputKeyword: string) {
+    if (onSearchStart) {
+      onSearchStart(); // Notify parent that search has started
+    }
+
     try {
       const response = await fetch(`http://localhost:8000/api/search`, {
         method: "POST",
