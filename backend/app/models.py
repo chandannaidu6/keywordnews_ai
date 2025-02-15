@@ -30,7 +30,7 @@ class UserResponse(UserBase):
     image: Optional[str] = None
 
     class Config:
-        from_attributes = True
+        orm_mode = True  
 
 class OAuthUserInput(BaseModel):
     email: EmailStr
