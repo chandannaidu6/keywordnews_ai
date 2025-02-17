@@ -1,21 +1,20 @@
-# Use an official Python image as base
-FROM python:3.11-slim
+# Use the full Python 3.11 image
+FROM python:3.11
 
-# Set working directory in the container
+# Set the working directory
 WORKDIR /app
 
-# Copy requirements and install them
+# Copy only the requirements first (for better caching)
 COPY app/requirements.txt .
+
+# Install dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Set the Transformers cache directory to a writable directory
-ENV TRANSFORMERS_CACHE=/tmp/cache
-
-# Copy your application code
+# Copy the rest of your application code
 COPY app/ ./app/
 
-# Expose port 8080 (Lambda expects this port)
+# Expose the port (if needed)
 EXPOSE 8080
 
-# Run the FastAPI app using uvicorn (production mode)
+# Start the FastAPI app using Uvicorn
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]

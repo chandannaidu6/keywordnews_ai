@@ -4,6 +4,9 @@ from fastapi.middleware.cors import CORSMiddleware
 import os
 from app.database.database import engine
 from app.database.user import Base
+from mangum import Mangum
+import uvicorn
+
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 
@@ -20,6 +23,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+handler = Mangum(app, lifespan="off")
 
 app.include_router(search.router)
 app.include_router(auth.router, prefix="/api/auth")
@@ -33,3 +37,5 @@ async def on_startup():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=8080)

@@ -39,9 +39,6 @@ tokenized_data = dataset.map(
 )
 
 
-#
-# 4. Load the base model on CPU
-#
 model = AutoModelForCausalLM.from_pretrained(
     model_name,
     torch_dtype=torch.float32,
@@ -58,68 +55,54 @@ lora_config = LoraConfig(
     bias="none",
     task_type=TaskType.CAUSAL_LM,
     inference_mode=False,
-    # GPT-2 uses Conv1D modules: "c_attn", "c_proj"
     target_modules=["c_attn", "c_proj"],
 )
 model = get_peft_model(model, lora_config)
 model.train()
 
-#
-# 6. Custom Data Collator (No 'causal_mask')
-#
+
 class GPT2DataCollator:
-    """
-    Custom collator that pads input_ids, attention_mask, and labels,
-    ensuring no 'causal_mask' or other unexpected fields are created.
-    """
-    def __init__(self, tokenizer, max_length=256):
+    def __init__(self,tokenizer,max_length):
         self.tokenizer = tokenizer
         self.max_length = max_length
 
-    def __call__(self, features):
+    def __call__(self,features):
         input_ids_list = []
         attention_mask_list = []
         labels_list = []
 
         for f in features:
-            # Convert to torch tensors
-            in_ids = torch.tensor(f["input_ids"], dtype=torch.long)
-            # If 'attention_mask' is missing, default to all 1s
+            in_ids = torch.tensor(f["input_ids"],dtype=torch.long)
             if "attention_mask" in f:
-                at_mask = torch.tensor(f["attention_mask"], dtype=torch.long)
+                at_mask = torch.tensor(f['attention_mask'])
             else:
                 at_mask = torch.ones_like(in_ids)
             if "labels" in f:
-                lbls = torch.tensor(f["labels"], dtype=torch.long)
+                lbls = torch.tensor(f["labels"],dtype=torch.long)
             else:
                 lbls = in_ids.clone()
-
             input_ids_list.append(in_ids)
             attention_mask_list.append(at_mask)
             labels_list.append(lbls)
+        
+        input_ids = pad_sequence(input_ids_list,batch_first=True,padding_value=self.tokenizer.pad_token_id)
+        attention_mask = pad_sequence(attention_mask_list,batch_first=True,padding_value=0)
+        labels = pad_sequence(labels_list,batch_first=True,padding_value=-100)
 
-        # Pad sequences with pad_token_id for input_ids, 0 for attention_mask, -100 for labels
-        input_ids = pad_sequence(input_ids_list, batch_first=True, padding_value=self.tokenizer.pad_token_id)
-        attention_mask = pad_sequence(attention_mask_list, batch_first=True, padding_value=0)
-        labels = pad_sequence(labels_list, batch_first=True, padding_value=-100)
-
-        # Truncate if needed
         if input_ids.size(1) > self.max_length:
-            input_ids = input_ids[:, :self.max_length]
-            attention_mask = attention_mask[:, :self.max_length]
-            labels = labels[:, :self.max_length]
+            input_ids = input_ids[:,:self.max_length]
+            attention_mask = attention_mask[:,:self.max_length]
+            labels = labels[:,:self.max_length]
 
         return {
-            "input_ids": input_ids,
-            "attention_mask": attention_mask,
+            "input_ids":input_ids,
+            "attention_mask":attention_mask,
             "labels": labels
         }
 
 data_collator = GPT2DataCollator(tokenizer=tokenizer, max_length=max_seq_length)
 
-#
-# 7. Training Arguments
-#
+
 training_args = TrainingArguments(
     output_dir="./gpt2_finetuned_cpu",
     overwrite_output_dir=True,
@@ -132,9 +115,7 @@ training_args = TrainingArguments(
     report_to="none",
 )
 
-#
-# 8. Initialize Trainer
-#
+
 from transformers import Trainer
 
 trainer = Trainer(
@@ -144,9 +125,7 @@ trainer = Trainer(
     data_collator=data_collator,
 )
 
-#
-# 9. Optional: Test a Forward Pass
-#
+
 def test_forward_pass():
     batch = next(iter(trainer.get_train_dataloader()))
     # Clean up batch to remove any unknown fields

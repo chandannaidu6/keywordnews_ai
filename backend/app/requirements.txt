@@ -1,4 +1,4 @@
-fastapi==0.115.8
+fastapi==0.100.0
 uvicorn[standard]==0.34.0
 sqlalchemy>=1.4.0
 asyncpg>=0.25.0
@@ -9,7 +9,7 @@ tweepy==4.15.0
 transformers==4.48.3
 torch==2.6.0
 datasets==3.2.0
-langchain==0.0.148
-langchain-community==0.0.12
-pydantic[email]==1.10.7
-
+langchain>=0.0.200
+langchain-community>=0.0.20
+pydantic[email]>=2.0.2,<3.0.0
+mangum==0.17.0
