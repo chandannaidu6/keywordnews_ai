@@ -29,7 +29,7 @@ export default function TextBox({ onResults, onSearchStart }: TextBoxProps) {
     }
 
     try {
-      const response = await fetch(`https://chandannaidu0606--backend-fastapi-app-web.modal.run/api/search`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/search`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ keyword: inputKeyword }),
